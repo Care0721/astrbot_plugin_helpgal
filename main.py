@@ -16,7 +16,7 @@ from astrbot.api import logger, AstrBotConfig
 
 
 @register(
-    name="astrbot_plugin_helpgal",
+    name="astrbot_plugin_galgame",
     desc="Galgame 辅助插件 v2.1 - 攻略/记录/CG收集/评分/VNDB，支持 WebUI 配置",
     version="2.1.0",
     author="GalHelper",
@@ -117,16 +117,29 @@ class GalgamePlugin(Star):
         return f"[{'█' * done}{'░' * (length - done)}] {pct * 100:.1f}%"
 
     async def _ai_chat(self, prompt: str, event: AstrMessageEvent):
-        """统一 AI 调用入口，支持指定提供商"""
-        # 将系统提示词拼入 prompt 前
+        """统一 AI 调用入口，支持指定提供商，含错误处理"""
         full_prompt = f"{self.ai_system_prompt}\n\n{prompt}" if self.ai_system_prompt else prompt
-        # 若配置了指定提供商，则切换；否则用全局默认
-        if self.ai_provider_id:
-            provider = self.context.get_provider_by_id(self.ai_provider_id)
-        else:
-            provider = self.context.get_using_provider()
-        result = await provider.text_chat(prompt=full_prompt, session_id=event.session_id)
-        yield result
+        try:
+            if self.ai_provider_id:
+                provider = self.context.get_provider_by_id(self.ai_provider_id)
+            else:
+                provider = self.context.get_using_provider()
+            if provider is None:
+                yield event.plain_result("❌ 未找到可用的 AI 提供商，请在 AstrBot WebUI → 服务提供商 中配置并启用模型。")
+                return
+            result = await provider.text_chat(prompt=full_prompt, session_id=event.session_id)
+            yield result
+        except Exception as e:
+            err = str(e)
+            if "401" in err or "token" in err.lower() or "authentication" in err.lower():
+                yield event.plain_result(
+                    "❌ AI 提供商认证失败（401）\n"
+                    "请前往 AstrBot WebUI → 服务提供商，\n"
+                    "重新填写 API Key 或重新登录账号后再试。"
+                )
+            else:
+                yield event.plain_result(f"❌ AI 调用出错：{err}")
+            logger.error(f"[GalgamePlugin] AI调用异常: {e}")
 
     # ═══════════════════════════════════════
     #  1. 帮助菜单
@@ -138,7 +151,7 @@ class GalgamePlugin(Star):
         text = (
             "🎮 ══ Galgame 辅助插件 v2.1 ══ 🎮\n\n"
             "📖 【攻略查询 (AI)】\n"
-            "  /gal se <游戏名>           综合攻略建议\n"
+            "  /gal se <游戏名>               综合攻略建议\n"
             "  /gal route  <游戏名>           推荐游玩路线\n"
             "  /gal endings <游戏名>          结局列表\n"
             "  /gal char <游戏名> <角色>      角色攻略\n\n"
@@ -174,7 +187,7 @@ class GalgamePlugin(Star):
     # ═══════════════════════════════════════
 
     @filter.command("gal se")
-    async def gal_se(self, event: AstrMessageEvent):
+    async def gal_search(self, event: AstrMessageEvent):
         """【攻略查询】AI 综合攻略：游戏简介、游玩建议、路线顺序、新手注意事项。用法：/gal se <游戏名>"""
         args = event.message_str.strip().removeprefix("/gal se").strip()
         if not args:
@@ -758,7 +771,7 @@ class GalgamePlugin(Star):
         game, desc = random.choice(self.CLASSIC_GAMES)
         yield event.plain_result(
             f"🎲 随机推荐：\n\n🎮 《{game}》\n📖 {desc}\n\n"
-            f"  攻略：/gal search {game}\n"
+            f"  攻略：/gal se {game}\n"
             f"  评价：/gal review {game}\n"
             f"  VNDB：/gal vn {game}"
         )
