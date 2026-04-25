@@ -1,0 +1,129 @@
+{
+  "ai_settings": {
+    "description": "AI 设置",
+    "type": "object",
+    "hint": "配置插件调用 AI 时的相关参数",
+    "items": {
+      "ai_provider": {
+        "description": "指定 AI 提供商",
+        "type": "string",
+        "hint": "留空则使用 AstrBot 全局默认提供商",
+        "default": "",
+        "_special": "select_provider"
+      },
+      "ai_system_prompt": {
+        "description": "AI 助手角色设定",
+        "type": "text",
+        "hint": "用于攻略查询和剧情讨论功能的 AI 角色提示词，留空使用默认设定",
+        "default": "你是一位资深的 Galgame 爱好者和攻略专家，对各大名作如数家珍，擅长提供无剧透的游玩建议。请用中文回答，语气友好亲切。"
+      },
+      "enable_spoiler_hint": {
+        "description": "攻略查询时提示剧透警告",
+        "type": "bool",
+        "hint": "开启后，AI 在涉及剧情时会自动添加剧透警告提示",
+        "default": true
+      }
+    }
+  },
+
+  "vndb_settings": {
+    "description": "VNDB 数据库设置",
+    "type": "object",
+    "hint": "配置 VNDB API 相关参数（vndb.org）",
+    "items": {
+      "vndb_timeout": {
+        "description": "VNDB API 请求超时（秒）",
+        "type": "int",
+        "hint": "超时时间越短越快，但网络差时可能请求失败，建议 10-30",
+        "default": 10
+      },
+      "vndb_top_min_votes": {
+        "description": "vntop 榜单最低票数门槛",
+        "type": "int",
+        "hint": "票数低于此值的游戏不纳入榜单，防止冷门游戏占据高位",
+        "default": 1000
+      },
+      "vndb_top_count": {
+        "description": "vntop 榜单显示数量",
+        "type": "int",
+        "hint": "一次显示多少条榜单记录，建议 5-20",
+        "default": 10
+      }
+    }
+  },
+
+  "rating_settings": {
+    "description": "评分系统设置",
+    "type": "object",
+    "hint": "配置玩家评分功能的相关参数",
+    "items": {
+      "rating_max_score": {
+        "description": "评分满分值",
+        "type": "float",
+        "hint": "评分区间为 1 到此值，默认满分 10 分",
+        "default": 10.0
+      },
+      "ranking_show_count": {
+        "description": "评分排行榜显示数量",
+        "type": "int",
+        "hint": "群内排行榜一次最多显示多少条，建议 10-20",
+        "default": 15
+      }
+    }
+  },
+
+  "cg_settings": {
+    "description": "CG 收集设置",
+    "type": "object",
+    "hint": "配置 CG 收集记录功能的外观参数",
+    "items": {
+      "cg_bar_length": {
+        "description": "进度条长度（字符数）",
+        "type": "int",
+        "hint": "CG 进度条的字符宽度，建议 10-30",
+        "default": 20
+      },
+      "cg_completion_message": {
+        "description": "CG 全收集庆祝消息",
+        "type": "string",
+        "hint": "当 CG 收集达到 100% 时显示的庆祝语",
+        "default": "🎊 CG 全收集！完美通关！"
+      }
+    }
+  },
+
+  "note_settings": {
+    "description": "笔记功能设置",
+    "type": "object",
+    "hint": "配置游戏笔记功能的相关限制",
+    "items": {
+      "max_notes_per_game": {
+        "description": "每款游戏最大笔记数量",
+        "type": "int",
+        "hint": "单个用户对同一款游戏最多保存多少条笔记，0 为不限制",
+        "default": 50
+      }
+    }
+  },
+
+  "recommend_settings": {
+    "description": "推荐功能设置",
+    "type": "object",
+    "hint": "配置游戏推荐榜单的展示参数",
+    "items": {
+      "top_show_count": {
+        "description": "内置榜单显示数量",
+        "type": "int",
+        "hint": "/gal top 一次显示多少款游戏，最多 12 款",
+        "default": 12
+      },
+      "tag_recommend_count": {
+        "description": "标签推荐返回数量",
+        "type": "int",
+        "hint": "/gal tag 让 AI 推荐多少款游戏，建议 3-10",
+        "default": 5,
+        "options": [3, 5, 8, 10]
+      }
+    }
+  }
+}
