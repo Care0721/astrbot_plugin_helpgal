@@ -1,7 +1,7 @@
 """
 AstrBot Galgame 辅助插件
-版本: 2.1.1
-修复: 参数提取改用字符串查找，AI 密钥改为 WebUI 配置
+版本: 2.1.2
+更新: AI 模型名称改为从 WebUI 配置（ai_model），避免硬编码导致模型不可用
 """
 
 import json
@@ -16,9 +16,9 @@ from astrbot.api import logger, AstrBotConfig
 
 
 @register(
-    name="astrbot_plugin_helpgal",
-    desc="为 Galgame 爱好者提供攻略查询、进度记录、CG收集、评分系统、VNDB数据库等一站式辅助功能",
-    version="2.1.1",
+    name="astrbot_plugin_galgame",
+    desc="Galgame 辅助插件 v2.1.2 - 攻略/记录/CG收集/评分/VNDB，支持 WebUI 配置",
+    version="2.1.2",
     author="GalHelper",
 )
 class GalgamePlugin(Star):
@@ -37,8 +37,10 @@ class GalgamePlugin(Star):
             "擅长提供无剧透的游玩建议。请用中文回答，语气友好亲切。"
         )
         self.enable_spoiler_hint: bool = ai.get("enable_spoiler_hint", True)
-        # 密钥从 WebUI 配置读取，不再硬编码
+        # 密钥从 WebUI 配置读取
         self._AI_KEY = ai.get("api_key", "")
+        # 模型名称从 WebUI 读取，默认 deepseek/deepseek-chat
+        self._AI_MODEL = ai.get("ai_model", "deepseek/deepseek-chat")
 
         # VNDB 设置
         vndb = config.get("vndb_settings", {})
@@ -82,13 +84,13 @@ class GalgamePlugin(Star):
 
         self.VNDB_API = "https://api.vndb.org/kana"
 
-        # 内置 AI 配置（无需在网页端修改）
-        self._AI_URL   = "https://newx.icqq.asia/v1/chat/completions"
-        self._AI_MODEL = "deepseek/deepseek-chat"
+        # 内置 AI 地址（无需在网页端修改）
+        self._AI_URL = "https://newx.icqq.asia/v1/chat/completions"
 
         logger.info(
-            f"[GalgamePlugin v2.1.1] 已加载 ✅\n"
+            f"[GalgamePlugin v2.1.2] 已加载 ✅\n"
             f"  AI密钥 {'已配置' if self._AI_KEY else '⚠️ 未填写，AI功能将不可用'}\n"
+            f"  AI模型: {self._AI_MODEL}\n"
             f"  VNDB超时={self.vndb_timeout}s  榜单数={self.vndb_top_count}\n"
             f"  评分满分={self.rating_max_score}  CG进度条长={self.cg_bar_length}"
         )
@@ -181,7 +183,7 @@ class GalgamePlugin(Star):
     async def gal_help(self, event: AstrMessageEvent):
         """显示 Galgame 插件的所有可用指令和当前配置信息"""
         text = (
-            "🎮 ══ Galgame 辅助插件 v2.1.1 ══ 🎮\n\n"
+            "🎮 ══ Galgame 辅助插件 v2.1.2 ══ 🎮\n\n"
             "📖 【攻略查询 (AI)】\n"
             "  /gal se <游戏名>               综合攻略建议\n"
             "  /gal route  <游戏名>           推荐游玩路线\n"
