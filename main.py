@@ -1,7 +1,7 @@
 """
 AstrBot Galgame 辅助插件
-版本: 2.1.0
-新增: WebUI 可视化配置支持（_conf_schema.json）
+版本: 2.1.1
+新增: 修复自定义前缀导致的参数提取错误，硬编码 AI API 配置
 """
 
 import json
@@ -16,9 +16,9 @@ from astrbot.api import logger, AstrBotConfig
 
 
 @register(
-    name="astrbot_plugin_galgame",
-    desc="Galgame 辅助插件 v2.1 - 攻略/记录/CG收集/评分/VNDB，支持 WebUI 配置",
-    version="2.1.0",
+    name="astrbot_plugin_helpgal",
+    desc="为 Galgame 爱好者提供攻略查询、进度记录、CG收集、评分系统、VNDB数据库等一站式辅助功能",
+    version="2.1.1",
     author="GalHelper",
 )
 class GalgamePlugin(Star):
@@ -28,9 +28,8 @@ class GalgamePlugin(Star):
         # ── WebUI 配置（从 _conf_schema.json 注入） ──
         self.cfg = config  # 完整配置对象，支持 .save_config()
 
-        # AI 设置
+        # AI 设置 (已硬编码 API 和密钥，仅保留 System Prompt 可配)
         ai = config.get("ai_settings", {})
-        self.ai_provider_id: str   = ai.get("ai_provider", "")
         self.ai_system_prompt: str = ai.get(
             "ai_system_prompt",
             "你是一位资深的 Galgame 爱好者和攻略专家，对各大名作如数家珍，"
@@ -80,8 +79,8 @@ class GalgamePlugin(Star):
 
         self.VNDB_API = "https://api.vndb.org/kana"
         logger.info(
-            f"[GalgamePlugin v2.1] 已加载 ✅\n"
-            f"  AI提供商={'默认' if not self.ai_provider_id else self.ai_provider_id}\n"
+            f"[GalgamePlugin v2.1.1] 已加载 ✅\n"
+            f"  AI已硬编码: deepseek-chat (newx.icqq.asia)\n"
             f"  VNDB超时={self.vndb_timeout}s  榜单数={self.vndb_top_count}\n"
             f"  评分满分={self.rating_max_score}  CG进度条长={self.cg_bar_length}"
         )
@@ -116,30 +115,43 @@ class GalgamePlugin(Star):
         done   = int(pct * length)
         return f"[{'█' * done}{'░' * (length - done)}] {pct * 100:.1f}%"
 
+    def _extract_args(self, text: str, keyword: str) -> str:
+        """使用正则匹配提取指令后的参数，完美兼容任何自定义前缀"""
+        match = re.search(rf'\b{keyword}\b\s+(.*)', text, re.IGNORECASE)
+        return match.group(1).strip() if match else ""
+
     async def _ai_chat(self, prompt: str, event: AstrMessageEvent):
-        """统一 AI 调用入口，支持指定提供商，含错误处理"""
-        full_prompt = f"{self.ai_system_prompt}\n\n{prompt}" if self.ai_system_prompt else prompt
+        """直接使用指定 API 发起请求，无需网页配置"""
+        url = "https://newx.icqq.asia/v1/chat/completions"
+        headers = {
+            "Authorization": "Bearer sk-J0s7wpTliEJIhpVJGHpmJHPaA2nb3JJYfHrT7pXptlqtmzVT",
+            "Content-Type": "application/json"
+        }
+        
+        messages = []
+        if self.ai_system_prompt:
+            messages.append({"role": "system", "content": self.ai_system_prompt})
+        messages.append({"role": "user", "content": prompt})
+
+        payload = {
+            "model": "deepseek/deepseek-chat",
+            "messages": messages
+        }
+
         try:
-            if self.ai_provider_id:
-                provider = self.context.get_provider_by_id(self.ai_provider_id)
-            else:
-                provider = self.context.get_using_provider()
-            if provider is None:
-                yield event.plain_result("❌ 未找到可用的 AI 提供商，请在 AstrBot WebUI → 服务提供商 中配置并启用模型。")
-                return
-            result = await provider.text_chat(prompt=full_prompt, session_id=event.session_id)
-            yield result
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, json=payload, headers=headers, timeout=60) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        reply = data['choices'][0]['message']['content']
+                        yield event.plain_result(reply)
+                    else:
+                        error_text = await resp.text()
+                        logger.error(f"[AI Error] HTTP {resp.status}: {error_text}")
+                        yield event.plain_result(f"❌ AI 请求失败 (HTTP {resp.status})")
         except Exception as e:
-            err = str(e)
-            if "401" in err or "token" in err.lower() or "authentication" in err.lower():
-                yield event.plain_result(
-                    "❌ AI 提供商认证失败（401）\n"
-                    "请前往 AstrBot WebUI → 服务提供商，\n"
-                    "重新填写 API Key 或重新登录账号后再试。"
-                )
-            else:
-                yield event.plain_result(f"❌ AI 调用出错：{err}")
-            logger.error(f"[GalgamePlugin] AI调用异常: {e}")
+            logger.error(f"[AI Exception] 请求异常: {e}")
+            yield event.plain_result(f"❌ AI 请求异常，请稍后再试")
 
     # ═══════════════════════════════════════
     #  1. 帮助菜单
@@ -147,11 +159,10 @@ class GalgamePlugin(Star):
 
     @filter.command("gal help")
     async def gal_help(self, event: AstrMessageEvent):
-        """显示 Galgame 插件的所有可用指令和当前配置信息"""
         text = (
-            "🎮 ══ Galgame 辅助插件 v2.1 ══ 🎮\n\n"
+            "🎮 ══ Galgame 辅助插件 v2.1.1 ══ 🎮\n\n"
             "📖 【攻略查询 (AI)】\n"
-            "  /gal se <游戏名>               综合攻略建议\n"
+            "  /gal search <游戏名>           综合攻略建议\n"
             "  /gal route  <游戏名>           推荐游玩路线\n"
             "  /gal endings <游戏名>          结局列表\n"
             "  /gal char <游戏名> <角色>      角色攻略\n\n"
@@ -175,9 +186,8 @@ class GalgamePlugin(Star):
             "💬 【AI 讨论】\n"
             "  /gal talk <内容>\n\n"
             "⚙️ 【当前配置】\n"
-            f"  AI 提供商：{'默认' if not self.ai_provider_id else self.ai_provider_id}\n"
+            f"  AI模型：内置直连 DeepSeek-Chat\n"
             f"  评分满分：{self.rating_max_score:.0f}  VNDB超时：{self.vndb_timeout}s\n"
-            f"  （WebUI → 插件 → Galgame插件 → 配置 可修改）\n\n"
             "  /gal help  显示此菜单"
         )
         yield event.plain_result(text)
@@ -186,12 +196,11 @@ class GalgamePlugin(Star):
     #  2. 攻略查询 (AI)
     # ═══════════════════════════════════════
 
-    @filter.command("gal se")
+    @filter.command("gal search")
     async def gal_search(self, event: AstrMessageEvent):
-        """【攻略查询】AI 综合攻略：游戏简介、游玩建议、路线顺序、新手注意事项。用法：/gal se <游戏名>"""
-        args = event.message_str.strip().removeprefix("/gal se").strip()
+        args = self._extract_args(event.get_plain_text(), "search")
         if not args:
-            yield event.plain_result("❌ 格式：/gal se <游戏名>")
+            yield event.plain_result("❌ 格式：/gal search <游戏名>")
             return
         spoiler_note = "如涉及剧情请加剧透警告。" if self.enable_spoiler_hint else ""
         prompt = (
@@ -203,8 +212,7 @@ class GalgamePlugin(Star):
 
     @filter.command("gal route")
     async def gal_route(self, event: AstrMessageEvent):
-        """【攻略查询】AI 推荐游玩路线顺序，说明每条线路的先后原因。用法：/gal route <游戏名>"""
-        args = event.message_str.strip().removeprefix("/gal route").strip()
+        args = self._extract_args(event.get_plain_text(), "route")
         if not args:
             yield event.plain_result("❌ 格式：/gal route <游戏名>")
             return
@@ -215,8 +223,7 @@ class GalgamePlugin(Star):
 
     @filter.command("gal endings")
     async def gal_endings(self, event: AstrMessageEvent):
-        """【攻略查询】列出游戏所有结局名称（不剧透）及类型（Good/Normal/Bad End）。用法：/gal endings <游戏名>"""
-        args = event.message_str.strip().removeprefix("/gal endings").strip()
+        args = self._extract_args(event.get_plain_text(), "endings")
         if not args:
             yield event.plain_result("❌ 格式：/gal endings <游戏名>")
             return
@@ -226,8 +233,7 @@ class GalgamePlugin(Star):
 
     @filter.command("gal char")
     async def gal_char(self, event: AstrMessageEvent):
-        """【攻略查询】AI 查询特定角色攻略要点：角色简介、好感度注意、进入路线的关键选择。用法：/gal char <游戏名> <角色名>"""
-        args = event.message_str.strip().removeprefix("/gal char").strip().split(None, 1)
+        args = self._extract_args(event.get_plain_text(), "char").split(None, 1)
         if len(args) < 2:
             yield event.plain_result("❌ 格式：/gal char <游戏名> <角色名>")
             return
@@ -251,7 +257,7 @@ class GalgamePlugin(Star):
                 async with session.post(
                     url, json=payload,
                     headers={"Content-Type": "application/json"},
-                    timeout=aiohttp.ClientTimeout(total=self.vndb_timeout)  # ← 使用配置超时
+                    timeout=aiohttp.ClientTimeout(total=self.vndb_timeout)
                 ) as resp:
                     if resp.status == 200:
                         return await resp.json()
@@ -290,8 +296,7 @@ class GalgamePlugin(Star):
 
     @filter.command("gal vn")
     async def gal_vn(self, event: AstrMessageEvent):
-        """【VNDB】按游戏名查询 VNDB 数据库，返回评分、发售日、时长、标签、简介。用法：/gal vn <游戏名>"""
-        name = event.message_str.strip().removeprefix("/gal vn").strip()
+        name = self._extract_args(event.get_plain_text(), "vn")
         if not name:
             yield event.plain_result("❌ 格式：/gal vn <游戏名>")
             return
@@ -310,8 +315,7 @@ class GalgamePlugin(Star):
 
     @filter.command("gal vnid")
     async def gal_vnid(self, event: AstrMessageEvent):
-        """【VNDB】按 VNDB ID 精确查询游戏条目。用法：/gal vnid <v12345>，例如 /gal vnid v4"""
-        vid = event.message_str.strip().removeprefix("/gal vnid").strip()
+        vid = self._extract_args(event.get_plain_text(), "vnid")
         if not vid or not vid.startswith("v"):
             yield event.plain_result("❌ 格式：/gal vnid <v12345>")
             return
@@ -330,15 +334,14 @@ class GalgamePlugin(Star):
 
     @filter.command("gal vntop")
     async def gal_vntop(self, event: AstrMessageEvent):
-        """【VNDB】实时拉取 VNDB 评分排行榜，显示高分游戏列表（数量和票数门槛可在 WebUI 配置）"""
         yield event.plain_result(
             f"🔍 正在获取 VNDB 高分榜（最低 {self.vndb_top_min_votes} 票）..."
         )
         payload = {
-            "filters": ["votecount", ">=", self.vndb_top_min_votes],  # ← 使用配置票数
+            "filters": ["votecount", ">=", self.vndb_top_min_votes],
             "fields": "title,rating,votecount,released",
             "sort": "rating", "reverse": True,
-            "results": self.vndb_top_count,  # ← 使用配置数量
+            "results": self.vndb_top_count,
         }
         data = await self._vndb_post("vn", payload)
         if not data or not data.get("results"):
@@ -360,9 +363,8 @@ class GalgamePlugin(Star):
 
     @filter.command("gal add")
     async def gal_add(self, event: AstrMessageEvent):
-        """【进度记录】将游戏添加到个人在玩列表，记录开始日期。用法：/gal add <游戏名>"""
         uid  = self._uid(event)
-        game = event.message_str.strip().removeprefix("/gal add").strip()
+        game = self._extract_args(event.get_plain_text(), "add")
         if not game:
             yield event.plain_result("❌ 请提供游戏名称")
             return
@@ -376,9 +378,8 @@ class GalgamePlugin(Star):
 
     @filter.command("gal done")
     async def gal_done(self, event: AstrMessageEvent):
-        """【进度记录】将游戏标记为已通关，记录通关日期并提示打分。用法：/gal done <游戏名>"""
         uid  = self._uid(event)
-        game = event.message_str.strip().removeprefix("/gal done").strip()
+        game = self._extract_args(event.get_plain_text(), "done")
         if not game:
             yield event.plain_result("❌ 请提供游戏名称")
             return
@@ -392,9 +393,8 @@ class GalgamePlugin(Star):
 
     @filter.command("gal pause")
     async def gal_pause(self, event: AstrMessageEvent):
-        """【进度记录】将游戏标记为搁置状态（坑游戏专用）。用法：/gal pause <游戏名>"""
         uid  = self._uid(event)
-        game = event.message_str.strip().removeprefix("/gal pause").strip()
+        game = self._extract_args(event.get_plain_text(), "pause")
         if not game:
             yield event.plain_result("❌ 请提供游戏名称")
             return
@@ -405,7 +405,6 @@ class GalgamePlugin(Star):
 
     @filter.command("gal progress")
     async def gal_progress(self, event: AstrMessageEvent):
-        """【进度记录】查看个人游玩记录总览，按在玩/已通关/搁置分组展示所有游戏"""
         uid   = self._uid(event)
         games = self.progress_data.get(uid, {})
         if not games:
@@ -425,15 +424,13 @@ class GalgamePlugin(Star):
 
     @filter.command("gal note")
     async def gal_note(self, event: AstrMessageEvent):
-        """【进度记录】为指定游戏添加个人笔记，支持记录攻略提示、剧情感想等。用法：/gal note <游戏名> <内容>"""
         uid  = self._uid(event)
-        args = event.message_str.strip().removeprefix("/gal note").strip().split(None, 1)
+        args = self._extract_args(event.get_plain_text(), "note").split(None, 1)
         if len(args) < 2:
             yield event.plain_result("❌ 格式：/gal note <游戏名> <内容>")
             return
         game, content = args[0], args[1]
         notes = self.notes_data.setdefault(uid, {}).setdefault(game, [])
-        # 检查笔记数量上限
         if self.max_notes_per_game > 0 and len(notes) >= self.max_notes_per_game:
             yield event.plain_result(
                 f"⚠️ 《{game}》笔记已达上限 {self.max_notes_per_game} 条\n"
@@ -446,9 +443,8 @@ class GalgamePlugin(Star):
 
     @filter.command("gal notes")
     async def gal_notes(self, event: AstrMessageEvent):
-        """【进度记录】查看某款游戏保存的所有个人笔记，按时间顺序列出。用法：/gal notes <游戏名>"""
         uid  = self._uid(event)
-        game = event.message_str.strip().removeprefix("/gal notes").strip()
+        game = self._extract_args(event.get_plain_text(), "notes")
         if not game:
             yield event.plain_result("❌ 格式：/gal notes <游戏名>")
             return
@@ -467,9 +463,8 @@ class GalgamePlugin(Star):
 
     @filter.command("gal cg init")
     async def gal_cg_init(self, event: AstrMessageEvent):
-        """【CG收集】初始化某游戏的 CG 收集记录，设定总张数。用法：/gal cg init <游戏名> <CG总数>"""
         uid  = self._uid(event)
-        args = event.message_str.strip().removeprefix("/gal cg init").strip().split(None, 1)
+        args = self._extract_args(event.get_plain_text(), "init").split(None, 1)
         if len(args) < 2:
             yield event.plain_result("❌ 格式：/gal cg init <游戏名> <CG总数>")
             return
@@ -499,9 +494,8 @@ class GalgamePlugin(Star):
 
     @filter.command("gal cg add")
     async def gal_cg_add(self, event: AstrMessageEvent):
-        """【CG收集】在现有数量基础上累加已收集 CG 数，并显示进度条。用法：/gal cg add <游戏名> <新增数量>"""
         uid  = self._uid(event)
-        args = event.message_str.strip().removeprefix("/gal cg add").strip().split(None, 1)
+        args = self._extract_args(event.get_plain_text(), "add").split(None, 1)
         if len(args) < 2:
             yield event.plain_result("❌ 格式：/gal cg add <游戏名> <数量>")
             return
@@ -520,7 +514,6 @@ class GalgamePlugin(Star):
         rec["updated_at"] = datetime.now().strftime("%Y-%m-%d")
         self._save_json(self.cg_file, self.cg_data)
         bar = self._cg_bar(rec["collected"], rec["total"])
-        # 使用配置的庆祝消息
         tip = f"\n{self.cg_completion_msg}" if rec["collected"] == rec["total"] else ""
         yield event.plain_result(
             f"🖼️ 《{game}》CG 更新\n"
@@ -530,9 +523,8 @@ class GalgamePlugin(Star):
 
     @filter.command("gal cg set")
     async def gal_cg_set(self, event: AstrMessageEvent):
-        """【CG收集】直接设置已收集 CG 的绝对数量（覆盖原有数量）。用法：/gal cg set <游戏名> <数量>"""
         uid  = self._uid(event)
-        args = event.message_str.strip().removeprefix("/gal cg set").strip().split(None, 1)
+        args = self._extract_args(event.get_plain_text(), "set").split(None, 1)
         if len(args) < 2:
             yield event.plain_result("❌ 格式：/gal cg set <游戏名> <数量>")
             return
@@ -558,9 +550,8 @@ class GalgamePlugin(Star):
 
     @filter.command("gal cg show")
     async def gal_cg_show(self, event: AstrMessageEvent):
-        """【CG收集】查看某游戏的 CG 收集进度条、百分比和剩余数量。用法：/gal cg show <游戏名>"""
         uid  = self._uid(event)
-        game = event.message_str.strip().removeprefix("/gal cg show").strip()
+        game = self._extract_args(event.get_plain_text(), "show")
         if not game:
             yield event.plain_result("❌ 格式：/gal cg show <游戏名>")
             return
@@ -582,7 +573,6 @@ class GalgamePlugin(Star):
 
     @filter.command("gal cg list")
     async def gal_cg_list(self, event: AstrMessageEvent):
-        """【CG收集】一览所有游戏的 CG 收集概况，带简短进度条和百分比"""
         uid    = self._uid(event)
         all_cg = self.cg_data.get(uid, {})
         if not all_cg:
@@ -605,7 +595,7 @@ class GalgamePlugin(Star):
     @filter.command("gal rate")
     async def gal_rate(self, event: AstrMessageEvent):
         uid  = self._uid(event)
-        args = event.message_str.strip().removeprefix("/gal rate").strip().split(None, 2)
+        args = self._extract_args(event.get_plain_text(), "rate").split(None, 2)
         if len(args) < 2:
             yield event.plain_result(
                 f"❌ 格式：/gal rate <游戏名> <1-{self.rating_max_score:.0f}> [评语]\n"
@@ -615,7 +605,7 @@ class GalgamePlugin(Star):
         game = args[0]
         try:
             score = float(args[1])
-            assert 1 <= score <= self.rating_max_score  # ← 使用配置的满分值
+            assert 1 <= score <= self.rating_max_score
         except Exception:
             yield event.plain_result(f"❌ 分数必须在 1-{self.rating_max_score:.0f} 之间")
             return
@@ -665,7 +655,7 @@ class GalgamePlugin(Star):
         ranked.sort(key=lambda x: x[1], reverse=True)
         medals = ["🥇", "🥈", "🥉"]
         lines  = ["🏆 ══ 群内 Galgame 评分榜 ══\n"]
-        for i, (game, avg, cnt) in enumerate(ranked[:self.ranking_show_count]):  # ← 使用配置数量
+        for i, (game, avg, cnt) in enumerate(ranked[:self.ranking_show_count]):
             medal = medals[i] if i < 3 else f"  {i+1}."
             lines.append(f"{medal} 《{game}》")
             lines.append(f"     {self._stars(avg)}  （{cnt} 人）\n")
@@ -673,7 +663,7 @@ class GalgamePlugin(Star):
 
     @filter.command("gal review")
     async def gal_review(self, event: AstrMessageEvent):
-        game  = event.message_str.strip().removeprefix("/gal review").strip()
+        game = self._extract_args(event.get_plain_text(), "review")
         if not game:
             yield event.plain_result("❌ 格式：/gal review <游戏名>")
             return
@@ -711,7 +701,7 @@ class GalgamePlugin(Star):
     @filter.command("gal wish")
     async def gal_wish(self, event: AstrMessageEvent):
         uid  = self._uid(event)
-        game = event.message_str.strip().removeprefix("/gal wish").strip()
+        game = self._extract_args(event.get_plain_text(), "wish")
         if not game:
             yield event.plain_result("❌ 请提供游戏名称")
             return
@@ -737,8 +727,8 @@ class GalgamePlugin(Star):
 
     @filter.command("gal unwish")
     async def gal_unwish(self, event: AstrMessageEvent):
-        uid      = self._uid(event)
-        game     = event.message_str.strip().removeprefix("/gal unwish").strip()
+        uid  = self._uid(event)
+        game = self._extract_args(event.get_plain_text(), "unwish")
         wishlist = self.wishlist_data.get(uid, [])
         if game in wishlist:
             wishlist.remove(game)
@@ -771,14 +761,14 @@ class GalgamePlugin(Star):
         game, desc = random.choice(self.CLASSIC_GAMES)
         yield event.plain_result(
             f"🎲 随机推荐：\n\n🎮 《{game}》\n📖 {desc}\n\n"
-            f"  攻略：/gal se {game}\n"
+            f"  攻略：/gal search {game}\n"
             f"  评价：/gal review {game}\n"
             f"  VNDB：/gal vn {game}"
         )
 
     @filter.command("gal top")
     async def gal_top(self, event: AstrMessageEvent):
-        count = self.top_show_count  # ← 使用配置数量
+        count = self.top_show_count
         lines = [f"🏆 ══ 经典 Galgame 推荐榜 (Top{count}) ══\n"]
         for i, (game, desc) in enumerate(self.CLASSIC_GAMES[:count], 1):
             lines.append(f"  {i:2d}. 《{game}》\n      {desc}")
@@ -787,12 +777,12 @@ class GalgamePlugin(Star):
 
     @filter.command("gal tag")
     async def gal_tag(self, event: AstrMessageEvent):
-        tag = event.message_str.strip().removeprefix("/gal tag").strip()
+        tag = self._extract_args(event.get_plain_text(), "tag")
         if not tag:
             yield event.plain_result("❌ 格式：/gal tag <标签>  如：/gal tag 催泪")
             return
         prompt = (
-            f"推荐 {self.tag_recommend_count} 款标签为【{tag}】的优秀 Galgame。\n"  # ← 使用配置数量
+            f"推荐 {self.tag_recommend_count} 款标签为【{tag}】的优秀 Galgame。\n"
             "格式：序号. 《游戏名》- 一句话描述。只推荐真实存在的游戏。"
         )
         async for r in self._ai_chat(prompt, event):
@@ -804,7 +794,7 @@ class GalgamePlugin(Star):
 
     @filter.command("gal talk")
     async def gal_talk(self, event: AstrMessageEvent):
-        content = event.message_str.strip().removeprefix("/gal talk").strip()
+        content = self._extract_args(event.get_plain_text(), "talk")
         if not content:
             yield event.plain_result(
                 "💬 格式：/gal talk <内容>\n"
@@ -821,7 +811,7 @@ class GalgamePlugin(Star):
 
     @filter.command("gal remind")
     async def gal_remind(self, event: AstrMessageEvent):
-        args = event.message_str.strip().removeprefix("/gal remind").strip()
+        args = self._extract_args(event.get_plain_text(), "remind")
         if not args:
             yield event.plain_result("❌ 格式：/gal remind <游戏名> <时间描述>")
             return
