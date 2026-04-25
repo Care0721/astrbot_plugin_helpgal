@@ -183,7 +183,7 @@ class GalgamePlugin(Star):
     async def gal_help(self, event: AstrMessageEvent):
         """显示 Galgame 插件的所有可用指令和当前配置信息"""
         text = (
-            "🎮 ══ Galgame 辅助插件 v2.1.2 ══ 🎮\n\n"
+            "🎮 ══ Galgame 辅助插件 v2.1.1 ══ 🎮\n\n"
             "📖 【攻略查询 (AI)】\n"
             "  /gal se <游戏名>               综合攻略建议\n"
             "  /gal route  <游戏名>           推荐游玩路线\n"
@@ -211,7 +211,7 @@ class GalgamePlugin(Star):
             "⚙️ 【当前配置】\n"
             f"  AI 提供商：{'默认' if not self.ai_provider_id else self.ai_provider_id}\n"
             f"  评分满分：{self.rating_max_score:.0f}  VNDB超时：{self.vndb_timeout}s\n"
-            f"  （WebUI → 插件 → Galgame插件 → 配置 可修改）\n\n"
+            f"  （vndbnb）\n\n"
             "  /gal help  显示此菜单"
         )
         yield event.plain_result(text)
