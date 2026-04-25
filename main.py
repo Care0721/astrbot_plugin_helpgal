@@ -16,7 +16,7 @@ from astrbot.api import logger, AstrBotConfig
 
 
 @register(
-    name="astrbot_plugin_galgame",
+    name="astrbot_plugin_helpgal",
     desc="Galgame 辅助插件 v2.1 - 攻略/记录/CG收集/评分/VNDB，支持 WebUI 配置",
     version="2.1.0",
     author="GalHelper",
@@ -138,7 +138,7 @@ class GalgamePlugin(Star):
         text = (
             "🎮 ══ Galgame 辅助插件 v2.1 ══ 🎮\n\n"
             "📖 【攻略查询 (AI)】\n"
-            "  /gal search <游戏名>           综合攻略建议\n"
+            "  /gal se <游戏名>           综合攻略建议\n"
             "  /gal route  <游戏名>           推荐游玩路线\n"
             "  /gal endings <游戏名>          结局列表\n"
             "  /gal char <游戏名> <角色>      角色攻略\n\n"
@@ -173,12 +173,12 @@ class GalgamePlugin(Star):
     #  2. 攻略查询 (AI)
     # ═══════════════════════════════════════
 
-    @filter.command("gal search")
-    async def gal_search(self, event: AstrMessageEvent):
-        """【攻略查询】AI 综合攻略：游戏简介、游玩建议、路线顺序、新手注意事项。用法：/gal search <游戏名>"""
-        args = event.message_str.strip().removeprefix("/gal search").strip()
+    @filter.command("gal se")
+    async def gal_se(self, event: AstrMessageEvent):
+        """【攻略查询】AI 综合攻略：游戏简介、游玩建议、路线顺序、新手注意事项。用法：/gal se <游戏名>"""
+        args = event.message_str.strip().removeprefix("/gal se").strip()
         if not args:
-            yield event.plain_result("❌ 格式：/gal search <游戏名>")
+            yield event.plain_result("❌ 格式：/gal se <游戏名>")
             return
         spoiler_note = "如涉及剧情请加剧透警告。" if self.enable_spoiler_hint else ""
         prompt = (
