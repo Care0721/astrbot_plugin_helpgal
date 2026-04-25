@@ -17,6 +17,12 @@
         "hint": "填写 API 密钥，用于调用 DeepSeek 等模型",
         "default": ""
       },
+      "ai_model": {
+        "description": "AI 模型名称",
+        "type": "string",
+        "hint": "填写调用的模型名称，例如 deepseek/deepseek-chat 或 deepseek-chat",
+        "default": "deepseek/deepseek-chat"
+      },
       "ai_system_prompt": {
         "description": "AI 助手角色设定",
         "type": "text",
