@@ -16,9 +16,9 @@ from astrbot.api import logger, AstrBotConfig
 
 
 @register(
-    name="astrbot_plugin_galgame",
-    desc="Galgame 辅助插件 v2.1.2 - 攻略/记录/CG收集/评分/VNDB，支持 WebUI 配置",
-    version="2.1.2",
+    name="astrbot_plugin_helpgal",
+    desc="为 Galgame 爱好者提供攻略查询、进度记录、CG收集、评分系统、VNDB数据库等一站式辅助功能",
+    version="2.1.1",
     author="GalHelper",
 )
 class GalgamePlugin(Star):
