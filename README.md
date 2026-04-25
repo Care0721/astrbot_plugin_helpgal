@@ -1,14 +1,209 @@
-# astrbot-plugin-helloworld
+# 🎮 AstrBot Galgame 辅助插件 v2.0
 
-AstrBot 插件模板 / A template plugin for AstrBot plugin feature
+> 为 Galgame 爱好者提供攻略查询、进度记录、CG收集、评分系统、VNDB数据库等一站式辅助功能
 
-> [!NOTE]
-> This repo is just a template of [AstrBot](https://github.com/AstrBotDevs/AstrBot) Plugin.
-> 
-> [AstrBot](https://github.com/AstrBotDevs/AstrBot) is an agentic assistant for both personal and group conversations. It can be deployed across dozens of mainstream instant messaging platforms, including QQ, Telegram, Feishu, DingTalk, Slack, LINE, Discord, Matrix, etc. In addition, it provides a reliable and extensible conversational AI infrastructure for individuals, developers, and teams. Whether you need a personal AI companion, an intelligent customer support agent, an automation assistant, or an enterprise knowledge base, AstrBot enables you to quickly build AI applications directly within your existing messaging workflows.
+---
 
-# Supports
+## 📦 安装方法
 
-- [AstrBot Repo](https://github.com/AstrBotDevs/AstrBot)
-- [AstrBot Plugin Development Docs (Chinese)](https://docs.astrbot.app/dev/star/plugin-new.html)
-- [AstrBot Plugin Development Docs (English)](https://docs.astrbot.app/en/dev/star/plugin-new.html)
+将插件文件夹放入 AstrBot 的 `addons/plugins/` 目录下，重启 Bot 即可。
+
+```
+addons/plugins/
+└── astrbot_plugin_galgame/
+    ├── main.py
+    ├── metadata.json
+    ├── README.md
+    └── data/          ← 自动生成，勿删
+```
+
+---
+
+## 🔧 依赖
+
+- AstrBot >= 3.x
+- `aiohttp`（用于 VNDB API 请求）
+- 需配置 AI Provider（用于攻略查询、AI 讨论等功能）
+
+安装依赖：
+
+```bash
+pip install aiohttp
+```
+
+---
+
+## ✨ 完整功能列表
+
+### 📖 攻略与查询（AI 驱动）
+
+| 命令 | 说明 |
+|------|------|
+| `/gal search <游戏名>` | 综合攻略建议、游玩注意事项 |
+| `/gal route <游戏名>` | 推荐游玩路线顺序 |
+| `/gal endings <游戏名>` | 结局列表（无剧透） |
+| `/gal char <游戏名> <角色>` | 特定角色攻略要点 |
+
+---
+
+### 🗄️ VNDB 数据库（v2.0 新增）
+
+对接 [vndb.org](https://vndb.org) 官方公开 API，**无需注册、无需 API Key**。
+
+| 命令 | 说明 |
+|------|------|
+| `/gal vn <游戏名>` | 按名称查询游戏信息（评分/发售日/时长/标签/简介） |
+| `/gal vnid <v12345>` | 按 VNDB ID 精确查询，例如 `/gal vnid v4` |
+| `/gal vntop` | 实时拉取 VNDB 高分榜 Top10 |
+
+返回信息示例：
+```
+📚 ══ VNDB 数据 ══
+🎮 Clannad
+🏢 开发商：Key
+📅 发售日：2004-04-28
+⏱️  游玩时长：约 50 小时
+⭐ VNDB 评分：87.45/100 （12345 票）
+🏷️  标签：催泪  家庭  学园  ...
+📖 简介：...
+🔗 https://vndb.org/v4
+```
+
+---
+
+### 📝 进度记录（本地持久化）
+
+| 命令 | 说明 |
+|------|------|
+| `/gal add <游戏名>` | 添加到在玩列表 |
+| `/gal done <游戏名>` | 标记为已通关 |
+| `/gal pause <游戏名>` | 标记为搁置 |
+| `/gal progress` | 查看游玩进度总览 |
+| `/gal note <游戏名> <内容>` | 添加游戏笔记 |
+| `/gal notes <游戏名>` | 查看某游戏所有笔记 |
+
+---
+
+### 🖼️ CG 收集记录（v2.0 新增）
+
+支持为每款游戏独立追踪 CG 解锁进度，带可视化进度条。
+
+| 命令 | 说明 |
+|------|------|
+| `/gal cg init <游戏名> <总数>` | 初始化 CG 收集，设定总张数 |
+| `/gal cg add <游戏名> <数量>` | 增加已收集数量（累加） |
+| `/gal cg set <游戏名> <数量>` | 直接设置当前收集数量 |
+| `/gal cg show <游戏名>` | 查看该游戏 CG 进度条 |
+| `/gal cg list` | 查看所有游戏的 CG 收集概览 |
+
+进度条示例：
+```
+🖼️ ══ 《Clannad》CG 进度 ══
+
+  已收集：96 / 120 张
+  [████████████████░░░░] 80.0%
+  还差 24 张
+```
+
+---
+
+### ⭐ 评分系统（v2.0 新增）
+
+支持 1-10 分（含小数）打分，可附加评语；数据在群内共享，可查看排行榜。
+
+| 命令 | 说明 |
+|------|------|
+| `/gal rate <游戏名> <1-10> [评语]` | 给游戏打分，可附评语 |
+| `/gal myratings` | 查看我的所有评分记录 |
+| `/gal ranking` | 查看群内游戏评分排行榜 |
+| `/gal review <游戏名>` | 查看某游戏的分布图与玩家评语 |
+
+评价页示例：
+```
+📊 ══ 《白色相簿2》评价汇总 ══
+
+  均分：★★★★½  9.2/10
+  评分人数：8 人
+
+  分布：
+  10分 ████ (4)
+   9分 ██ (2)
+   8分 ██ (2)
+
+─── 玩家评语 ───
+  💬 9.5分：爱情悲剧天花板  (2024-12-01)
+```
+
+---
+
+### ⭐ 心愿单
+
+| 命令 | 说明 |
+|------|------|
+| `/gal wish <游戏名>` | 加入心愿单 |
+| `/gal wishlist` | 查看完整心愿单 |
+| `/gal unwish <游戏名>` | 从心愿单移除 |
+
+---
+
+### 🎲 推荐系统
+
+| 命令 | 说明 |
+|------|------|
+| `/gal recommend` | 随机推荐一款经典 Galgame |
+| `/gal top` | 查看内置经典推荐榜（12款） |
+| `/gal tag <标签>` | 按标签（催泪/科幻/恋爱/奇幻等）AI 推荐 |
+
+---
+
+### 💬 AI 剧情讨论
+
+| 命令 | 说明 |
+|------|------|
+| `/gal talk <内容>` | 和 AI 以 Galgame 同好身份讨论剧情感受 |
+
+---
+
+### ⏰ 其他
+
+| 命令 | 说明 |
+|------|------|
+| `/gal remind <游戏名> <时间>` | 记录游玩提醒计划 |
+| `/gal help` | 显示完整帮助菜单 |
+
+---
+
+## 📁 数据存储结构
+
+```
+data/
+├── progress.json   # 游玩进度（在玩/通关/搁置）
+├── wishlist.json   # 心愿单
+├── notes.json      # 游戏笔记
+├── cg.json         # CG 收集记录（v2.0）
+└── ratings.json    # 玩家评分数据（v2.0）
+```
+
+所有数据按**用户 ID 独立存储**，多用户互不干扰。评分排行榜数据在群内共享。
+
+---
+
+## 📋 更新日志
+
+### v2.0.0
+- 🆕 新增 VNDB 数据库查询（`/gal vn` / `/gal vnid` / `/gal vntop`）
+- 🆕 新增 CG 收集记录系统（带可视化进度条）
+- 🆕 新增评分系统（打分 / 排行榜 / 评价汇总）
+- ✅ 新增搁置状态 `/gal pause`
+- 🔧 帮助菜单全面更新
+
+### v1.0.0
+- 🎉 首次发布
+- 攻略查询、进度记录、心愿单、推荐系统、AI 剧情讨论
+
+---
+
+## 📜 License
+
+MIT License
+
