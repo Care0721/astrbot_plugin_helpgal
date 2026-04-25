@@ -125,8 +125,8 @@ class GalgamePlugin(Star):
             provider = self.context.get_provider_by_id(self.ai_provider_id)
         else:
             provider = self.context.get_using_provider()
-        async for result in provider.text_chat(prompt=full_prompt, session_id=event.session_id):
-            yield result
+        result = await provider.text_chat(prompt=full_prompt, session_id=event.session_id)
+        yield result
 
     # ═══════════════════════════════════════
     #  1. 帮助菜单
