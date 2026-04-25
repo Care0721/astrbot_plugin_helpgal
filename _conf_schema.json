@@ -11,6 +11,12 @@
         "default": "",
         "_special": "select_provider"
       },
+      "api_key": {
+        "description": "AI API 密钥",
+        "type": "string",
+        "hint": "填写 API 密钥，用于调用 DeepSeek 等模型",
+        "default": ""
+      },
       "ai_system_prompt": {
         "description": "AI 助手角色设定",
         "type": "text",
